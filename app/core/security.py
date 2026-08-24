@@ -1,12 +1,15 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+DUMMY_PASSWORD_HASH = password_context.hash(secrets.token_urlsafe(32))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -38,25 +41,31 @@ def create_access_token(
         "exp": expires_at,
         "type": "access",
     }
-    return cast(
-        str,
-        jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM),
-    )
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
     try:
-        payload = cast(
-            dict[str, Any],
-            jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM],
-                audience=settings.JWT_AUDIENCE,
-                issuer=settings.JWT_ISSUER,
-            ),
+        payload: dict[str, Any] = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            audience=settings.JWT_AUDIENCE,
+            issuer=settings.JWT_ISSUER,
+            options={
+                "require": [
+                    "sub",
+                    "tenant_id",
+                    "role",
+                    "iss",
+                    "aud",
+                    "iat",
+                    "exp",
+                    "type",
+                ]
+            },
         )
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise ValueError("Token inválido ou expirado") from exc
 
     if payload.get("type") != "access" or not payload.get("sub"):

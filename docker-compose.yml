@@ -5,23 +5,37 @@ services:
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://stockflow:stockflow@db:5432/stockflow
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://stockflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/stockflow
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY with at least 32 random characters}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   db:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    image: stockflow-postgres:16-alpine-secure
+    user: postgres
     environment:
       POSTGRES_DB: stockflow
       POSTGRES_USER: stockflow
-      POSTGRES_PASSWORD: stockflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -30,6 +44,14 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:uid=70,gid=70,mode=0775
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   postgres_data:

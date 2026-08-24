@@ -103,7 +103,7 @@ async def async_main(email: str, password: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cria dados locais de demonstração")
     parser.add_argument("--email", default="demo@stockflow.dev")
-    parser.add_argument("--password", default="Demo@12345")
+    parser.add_argument("--password", default="Demo@StockFlow123")
     args = parser.parse_args()
     asyncio.run(async_main(args.email, args.password))
 

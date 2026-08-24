@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 
@@ -16,6 +17,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError
+from app.core.middleware import RateLimitMiddleware, RequestBodyLimitMiddleware
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
@@ -58,18 +60,33 @@ app = FastAPI(
         "API RESTful multi-tenant para gestão de estoque e vendas, "
         "com autenticação JWT e autorização RBAC."
     ),
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if settings.docs_enabled else None,
+    redoc_url="/redoc" if settings.docs_enabled else None,
+    openapi_url="/openapi.json" if settings.docs_enabled else None,
     openapi_tags=OPENAPI_TAGS,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+app.add_middleware(
+    RateLimitMiddleware,
+    requests=settings.AUTH_RATE_LIMIT_REQUESTS,
+    window_seconds=settings.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    paths=(
+        f"{settings.API_V1_PREFIX}/auth/register",
+        f"{settings.API_V1_PREFIX}/auth/token",
+    ),
+    max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+)
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_body_bytes=settings.MAX_REQUEST_BODY_BYTES,
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -85,14 +102,32 @@ async def add_request_id(
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "img-src 'self' data: https://fastapi.tiangolo.com; "
-        "font-src 'self' data:; connect-src 'self'; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     )
+    if request.url.path in {"/docs", "/redoc"}:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https://fastapi.tiangolo.com; "
+            "font-src 'self' data:; connect-src 'self'; object-src 'none'; "
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "font-src 'self' data:; connect-src 'self'; object-src 'none'; "
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
+    if settings.ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains; preload"
+        )
+    if request.url.path.startswith(f"{settings.API_V1_PREFIX}/auth/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 

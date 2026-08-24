@@ -1,4 +1,4 @@
-.PHONY: install migrate run test lint format typecheck quality seed docker-up docker-down
+.PHONY: install migrate run test lint format typecheck audit quality seed docker-up docker-down
 
 install:
 	python -m pip install -r requirements-dev.txt
@@ -22,7 +22,11 @@ format:
 typecheck:
 	mypy app
 
-quality: lint typecheck test
+audit:
+	bandit -r app -x app/tests
+	pip-audit -r requirements-dev.txt
+
+quality: lint typecheck audit test
 
 seed:
 	python -m app.cli.seed_demo

@@ -91,15 +91,31 @@ Acesse:
 
 ## Execução com Docker e PostgreSQL
 
-Defina um segredo seguro e suba os serviços:
+Defina segredos distintos para a API e o PostgreSQL antes de subir os serviços:
 
 ```bash
 export SECRET_KEY="$(openssl rand -hex 32)"
+export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 docker compose up --build
 ```
 
-No PowerShell, use `$env:SECRET_KEY = '<segredo-com-32-ou-mais-caracteres>'`.
+No PowerShell:
+
+```powershell
+$env:SECRET_KEY = '<segredo-aleatorio-com-32-ou-mais-caracteres>'
+$env:POSTGRES_PASSWORD = '<senha-exclusiva-do-banco>'
+docker compose up --build
+```
+
 O container da API aplica `alembic upgrade head` antes de iniciar.
+No Compose, a documentação interativa permanece desativada por padrão; defina
+`ENABLE_DOCS=true` apenas no ambiente local se quiser expor Swagger e ReDoc.
+
+Para produção, configure também `ENVIRONMENT=production`, `ALLOWED_HOSTS` com
+o domínio público e `CORS_ORIGINS` somente com origens HTTPS autorizadas. Swagger,
+ReDoc e OpenAPI ficam desativados por padrão nesse ambiente. Publique a API atrás
+de um reverse proxy com TLS e rate limiting distribuído; o limitador interno é uma
+segunda camada por processo.
 
 ## Fluxo rápido da API
 
@@ -131,10 +147,21 @@ python -m app.cli.seed_demo
 Credenciais padrão da carga local:
 
 - E-mail: `demo@stockflow.dev`
-- Senha: `Demo@12345`
+- Senha: `Demo@StockFlow123`
 
 O comando é idempotente e recusa execução quando `ENVIRONMENT=production`.
 E-mail e senha podem ser alterados com `--email` e `--password`.
+
+## Controles de segurança
+
+- `SECRET_KEY` obrigatória e validação fail-fast de configurações de produção;
+- JWT HS256 com issuer, audience, tipo, emissão e expiração obrigatórios;
+- bcrypt, senha mínima de 12 caracteres e proteção contra enumeração por timing;
+- rate limit nos endpoints de autenticação e limite global de payload;
+- CORS explícito, hosts confiáveis, CSP, HSTS em produção e demais headers;
+- contêiner Alpine não-root, somente leitura, sem capabilities e sem privilégios;
+- Bandit, `pip-audit`, CodeQL, Dependabot e ações fixadas por commit no CI;
+- isolamento por `tenant_id` e autorização RBAC validada no banco a cada requisição.
 
 Endpoints principais:
 

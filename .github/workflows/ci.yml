@@ -4,12 +4,25 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENVIRONMENT: test
+      SECRET_KEY: ci-only-secret-with-enough-length-and-diversity-123456789
+      DATABASE_URL: sqlite+aiosqlite:///./ci.db
+      AUTH_RATE_LIMIT_REQUESTS: 1000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -17,12 +30,17 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy app
+      - run: bandit -r app -x app/tests
+      - run: pip-audit -r requirements-dev.txt
       - run: alembic upgrade head
       - run: alembic check
       - run: pytest
+      - run: node --check app/static/app.js
 
   container:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build --tag stockflow-api:ci .
+      - run: docker build --file Dockerfile.postgres --tag stockflow-postgres:ci .

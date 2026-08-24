@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import EmailStr, Field, field_validator, model_validator
 
+from app.core.passwords import StrongPassword
 from app.models.user import UserRole
 from app.schemas.common import ORMModel, RequestModel
 
@@ -17,7 +18,7 @@ class TenantRead(ORMModel):
 class UserCreate(RequestModel):
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=120)
-    password: str = Field(min_length=8, max_length=72)
+    password: StrongPassword
     role: UserRole = UserRole.VIEWER
 
     @field_validator("role")

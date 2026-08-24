@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -17,21 +17,28 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "StockFlow API"
     APP_VERSION: str = "1.0.0"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: Literal["development", "test", "production"] = "development"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     API_V1_PREFIX: str = "/api/v1"
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./inventory.db"
 
-    SECRET_KEY: str = Field(
-        default="development-only-change-me-at-least-32-chars",
-        min_length=32,
-    )
-    JWT_ALGORITHM: str = "HS256"
+    SECRET_KEY: str = Field(min_length=32)
+    JWT_ALGORITHM: Literal["HS256"] = "HS256"
     JWT_ISSUER: str = "stockflow-api"
     JWT_AUDIENCE: str = "stockflow-clients"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, gt=0)
+
+    AUTH_RATE_LIMIT_REQUESTS: int = Field(default=10, ge=1, le=1_000)
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3_600)
+    RATE_LIMIT_MAX_CLIENTS: int = Field(default=10_000, ge=100, le=100_000)
+    MAX_REQUEST_BODY_BYTES: int = Field(
+        default=1_048_576,
+        ge=1_024,
+        le=10_485_760,
+    )
+    ENABLE_DOCS: bool | None = None
 
     CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
@@ -39,22 +46,59 @@ class Settings(BaseSettings):
             "http://localhost:5173",
         ]
     )
+    ALLOWED_HOSTS: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["localhost", "127.0.0.1", "testserver", "test"]
+    )
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    @field_validator("CORS_ORIGINS", "ALLOWED_HOSTS", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: object) -> object:
+    def parse_csv_list(cls, value: object) -> object:
         if isinstance(value, str) and not value.startswith("["):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
     @model_validator(mode="after")
-    def reject_development_secret_in_production(self) -> "Settings":
-        if (
-            self.ENVIRONMENT.lower() == "production"
-            and self.SECRET_KEY == "development-only-change-me-at-least-32-chars"
+    def validate_production_settings(self) -> "Settings":
+        if self.ENVIRONMENT != "production":
+            return self
+
+        normalized_secret = self.SECRET_KEY.casefold()
+        unsafe_secret_markers = (
+            "change-me",
+            "replace-with",
+            "development-only",
+            "example-secret",
+        )
+        if any(marker in normalized_secret for marker in unsafe_secret_markers):
+            raise ValueError("SECRET_KEY must be a random production secret")
+        if len(set(self.SECRET_KEY)) < 16:
+            raise ValueError("SECRET_KEY does not have enough character diversity")
+
+        database_url = self.DATABASE_URL.casefold()
+        if not database_url.startswith("postgresql+asyncpg://"):
+            raise ValueError("Production requires PostgreSQL with the asyncpg driver")
+        if "stockflow:stockflow@" in database_url:
+            raise ValueError("Production database credentials must not use defaults")
+
+        unsafe_hosts = {"*", "localhost", "127.0.0.1", "test", "testserver"}
+        if not self.ALLOWED_HOSTS or any(
+            host.casefold() in unsafe_hosts for host in self.ALLOWED_HOSTS
         ):
-            raise ValueError("SECRET_KEY must be configured for production")
+            raise ValueError("ALLOWED_HOSTS must contain only production hostnames")
+        if any(
+            not origin.startswith("https://")
+            or "localhost" in origin
+            or "127.0.0.1" in origin
+            for origin in self.CORS_ORIGINS
+        ):
+            raise ValueError("CORS_ORIGINS must contain only HTTPS production origins")
         return self
+
+    @property
+    def docs_enabled(self) -> bool:
+        if self.ENABLE_DOCS is not None:
+            return self.ENABLE_DOCS
+        return self.ENVIRONMENT != "production"
 
 
 @lru_cache

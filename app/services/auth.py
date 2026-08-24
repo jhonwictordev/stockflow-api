@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError
-from app.core.security import get_password_hash, verify_password
+from app.core.security import DUMMY_PASSWORD_HASH, get_password_hash, verify_password
 from app.models.user import Tenant, User, UserRole
 from app.schemas.auth import RegisterRequest
 
@@ -51,9 +51,17 @@ async def register_tenant(db: AsyncSession, data: RegisterRequest) -> User:
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
-    user = await db.scalar(select(User).where(User.email == email.strip().lower()))
-    if user is None or not user.is_active:
+    normalized_email = email.strip().lower()
+    if len(normalized_email) > 320 or len(password) > 72:
         return None
-    if not verify_password(password, user.hashed_password):
+
+    user = await db.scalar(select(User).where(User.email == normalized_email))
+    candidate_hash = (
+        user.hashed_password
+        if user is not None and user.is_active
+        else DUMMY_PASSWORD_HASH
+    )
+    password_matches = verify_password(password, candidate_hash)
+    if user is None or not user.is_active or not password_matches:
         return None
     return user

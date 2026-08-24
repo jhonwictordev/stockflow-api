@@ -1,5 +1,13 @@
+import os
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from typing import Any
+
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault(
+    "SECRET_KEY",
+    "test-suite-secret-with-enough-length-and-character-diversity-123456789",
+)
+os.environ.setdefault("AUTH_RATE_LIMIT_REQUESTS", "1000")
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

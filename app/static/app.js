@@ -627,7 +627,7 @@ function bindEvents() {
   $("#register-form").addEventListener("submit", handleRegister);
   $("#demo-login").addEventListener("click", () => {
     $("#login-form").elements.email.value = "demo@stockflow.dev";
-    $("#login-form").elements.password.value = "Demo@12345";
+    $("#login-form").elements.password.value = "Demo@StockFlow123";
     $("#login-form").requestSubmit();
   });
   $("#logout-button").addEventListener("click", () => logout());

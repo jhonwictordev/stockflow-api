@@ -48,5 +48,5 @@ strict = true
 exclude = ["^alembic/", "^app/tests/"]
 
 [[tool.mypy.overrides]]
-module = ["jose.*", "passlib.*"]
+module = ["passlib.*"]
 ignore_missing_imports = true
