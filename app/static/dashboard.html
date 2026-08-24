@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Painel administrativo do StockFlow">
+  <title>Painel · StockFlow</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div id="auth-screen" class="auth-screen">
+    <section class="auth-showcase">
+      <a class="brand brand-large" href="/" aria-label="Página inicial do StockFlow">
+        <span class="brand-mark">SF</span>
+        <span>StockFlow</span>
+      </a>
+      <div class="showcase-copy">
+        <span class="badge">GESTÃO INTELIGENTE</span>
+        <h1>Estoque e vendas em um só fluxo.</h1>
+        <p>Controle sua operação com segurança, indicadores em tempo real e rastreabilidade completa.</p>
+      </div>
+      <div class="showcase-features">
+        <span>✓ Multi-tenant</span>
+        <span>✓ RBAC</span>
+        <span>✓ Estoque transacional</span>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-box">
+        <div class="auth-tabs" role="tablist" aria-label="Acesso">
+          <button id="login-tab" class="auth-tab active" type="button" role="tab">Entrar</button>
+          <button id="register-tab" class="auth-tab" type="button" role="tab">Criar conta</button>
+        </div>
+
+        <form id="login-form" class="form-stack">
+          <div>
+            <span class="overline">BEM-VINDO DE VOLTA</span>
+            <h2>Acesse sua organização</h2>
+            <p class="muted">Use seu e-mail e senha para continuar.</p>
+          </div>
+          <label>E-mail<input name="email" type="email" autocomplete="email" required placeholder="voce@empresa.com"></label>
+          <label>Senha<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required placeholder="Sua senha"></label>
+          <button class="button primary wide" type="submit">Entrar no painel</button>
+          <button id="demo-login" class="button ghost wide" type="button">Usar conta de demonstração</button>
+        </form>
+
+        <form id="register-form" class="form-stack hidden">
+          <div>
+            <span class="overline">COMECE AGORA</span>
+            <h2>Crie sua organização</h2>
+            <p class="muted">O primeiro usuário será o proprietário.</p>
+          </div>
+          <label>Organização<input name="organization_name" minlength="2" maxlength="120" required placeholder="Nome da empresa"></label>
+          <label>Seu nome<input name="full_name" minlength="2" maxlength="120" required placeholder="Nome completo"></label>
+          <label>E-mail<input name="email" type="email" autocomplete="email" required placeholder="voce@empresa.com"></label>
+          <label>Senha<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required placeholder="Mínimo de 8 caracteres"></label>
+          <button class="button primary wide" type="submit">Criar organização</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="Página inicial do StockFlow">
+        <span class="brand-mark">SF</span>
+        <span>StockFlow</span>
+      </a>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" type="button" data-view="dashboard"><span>◫</span> Visão geral</button>
+        <button class="nav-item" type="button" data-view="products"><span>□</span> Produtos</button>
+        <button class="nav-item" type="button" data-view="sales"><span>↗</span> Vendas</button>
+        <button id="users-nav" class="nav-item" type="button" data-view="users"><span>♙</span> Usuários</button>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/docs" target="_blank" rel="noreferrer">Documentação da API ↗</a>
+        <div class="api-online"><span></span> API conectada</div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <button id="mobile-menu" class="icon-button mobile-only" type="button" aria-label="Abrir menu">☰</button>
+          <p id="page-kicker" class="overline">PAINEL</p>
+          <h1 id="page-title">Visão geral</h1>
+        </div>
+        <div class="user-area">
+          <div class="user-avatar" id="user-avatar">U</div>
+          <div class="user-copy"><strong id="user-name">Usuário</strong><span id="user-role">Função</span></div>
+          <button id="logout-button" class="icon-button" type="button" title="Sair" aria-label="Sair">↪</button>
+        </div>
+      </header>
+
+      <section id="view-dashboard" class="view active">
+        <div class="welcome-card">
+          <div><span class="badge">OPERAÇÃO EM TEMPO REAL</span><h2 id="welcome-title">Olá!</h2><p>Acompanhe os principais números da sua organização.</p></div>
+          <button class="button primary quick-sale" type="button">+ Nova venda</button>
+        </div>
+        <div class="metrics-grid">
+          <article class="metric-card"><span class="metric-icon teal">□</span><div><p>Produtos ativos</p><strong id="metric-products">—</strong><small id="metric-stock-units">— unidades em estoque</small></div></article>
+          <article class="metric-card"><span class="metric-icon amber">!</span><div><p>Estoque baixo</p><strong id="metric-low-stock">—</strong><small>Itens no limite mínimo</small></div></article>
+          <article class="metric-card"><span class="metric-icon blue">R$</span><div><p>Valor em estoque</p><strong id="metric-inventory-value">—</strong><small>Preço × quantidade</small></div></article>
+          <article class="metric-card"><span class="metric-icon violet">↗</span><div><p>Receita em vendas</p><strong id="metric-revenue">—</strong><small id="metric-sales-count">— vendas concluídas</small></div></article>
+        </div>
+        <section class="panel">
+          <div class="panel-heading"><div><span class="overline">ATIVIDADE</span><h2>Vendas recentes</h2></div><button class="text-button" type="button" data-go="sales">Ver todas →</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Data</th><th>Status</th><th class="align-right">Total</th></tr></thead><tbody id="recent-sales-body"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="view-products" class="view">
+        <div class="section-toolbar">
+          <div><p class="muted">Gerencie catálogo, preços e disponibilidade.</p></div>
+          <button id="new-product-button" class="button primary" type="button">+ Novo produto</button>
+        </div>
+        <section class="panel">
+          <div class="filters"><label class="search-field"><span>⌕</span><input id="product-search" type="search" placeholder="Buscar por nome ou SKU"></label><label class="check-filter"><input id="low-stock-filter" type="checkbox"> Somente estoque baixo</label></div>
+          <div class="table-wrap"><table><thead><tr><th>Produto</th><th>SKU</th><th class="align-right">Preço</th><th class="align-center">Estoque</th><th>Status</th><th class="align-right">Ações</th></tr></thead><tbody id="products-body"></tbody></table></div>
+          <div id="products-pagination" class="pagination-copy"></div>
+        </section>
+      </section>
+
+      <section id="view-sales" class="view">
+        <div class="section-toolbar">
+          <div><p class="muted">Registre pedidos e acompanhe o histórico de vendas.</p></div>
+          <button id="new-sale-button" class="button primary" type="button">+ Nova venda</button>
+        </div>
+        <section class="panel">
+          <div class="filters"><label>Status<select id="sale-status-filter"><option value="">Todos</option><option value="completed">Concluídas</option><option value="cancelled">Canceladas</option></select></label></div>
+          <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Data</th><th>Itens</th><th>Status</th><th class="align-right">Total</th><th class="align-right">Ações</th></tr></thead><tbody id="sales-body"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="view-users" class="view">
+        <div class="section-toolbar">
+          <div><p class="muted">Controle acessos e responsabilidades da equipe.</p></div>
+          <button id="new-user-button" class="button primary" type="button">+ Novo usuário</button>
+        </div>
+        <section class="panel"><div class="table-wrap"><table><thead><tr><th>Usuário</th><th>E-mail</th><th>Função</th><th>Status</th><th>Criado em</th><th class="align-right">Ações</th></tr></thead><tbody id="users-body"></tbody></table></div></section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="product-dialog" class="modal">
+    <form id="product-form" method="dialog">
+      <div class="modal-heading"><div><span class="overline">CATÁLOGO</span><h2 id="product-dialog-title">Novo produto</h2></div><button class="icon-button close-dialog" type="button">×</button></div>
+      <input name="product_id" type="hidden">
+      <div class="form-grid"><label class="span-2">Nome<input name="name" minlength="2" maxlength="160" required></label><label>SKU<input name="sku" maxlength="64" required></label><label>Preço<input name="price" type="number" min="0.01" step="0.01" required></label><label id="initial-stock-label">Estoque inicial<input name="stock_quantity" type="number" min="0" value="0"></label><label>Estoque mínimo<input name="minimum_stock" type="number" min="0" value="0" required></label><label class="span-2">Descrição<textarea name="description" maxlength="500" rows="3"></textarea></label></div>
+      <div class="modal-actions"><button class="button ghost close-dialog" type="button">Cancelar</button><button class="button primary" type="submit">Salvar produto</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="stock-dialog" class="modal small">
+    <form id="stock-form" method="dialog">
+      <div class="modal-heading"><div><span class="overline">ESTOQUE</span><h2>Ajustar saldo</h2><p id="stock-product-name" class="muted"></p></div><button class="icon-button close-dialog" type="button">×</button></div>
+      <input name="product_id" type="hidden"><label>Quantidade<input name="quantity" type="number" required placeholder="Ex.: 10 ou -3"><small>Use valores negativos para retirar.</small></label><label>Motivo<textarea name="reason" minlength="3" maxlength="200" rows="3" required></textarea></label>
+      <div class="modal-actions"><button class="button ghost close-dialog" type="button">Cancelar</button><button class="button primary" type="submit">Registrar ajuste</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="sale-dialog" class="modal large">
+    <form id="sale-form" method="dialog">
+      <div class="modal-heading"><div><span class="overline">VENDAS</span><h2>Nova venda</h2></div><button class="icon-button close-dialog" type="button">×</button></div>
+      <label>Cliente (opcional)<input name="customer_name" maxlength="160" placeholder="Nome do cliente"></label>
+      <div class="items-heading"><strong>Itens da venda</strong><button id="add-sale-item" class="text-button" type="button">+ Adicionar item</button></div>
+      <div id="sale-items" class="sale-items"></div>
+      <div class="sale-total"><span>Total estimado</span><strong id="sale-total-value">R$ 0,00</strong></div>
+      <div class="modal-actions"><button class="button ghost close-dialog" type="button">Cancelar</button><button class="button primary" type="submit">Concluir venda</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="user-dialog" class="modal">
+    <form id="user-form" method="dialog">
+      <div class="modal-heading"><div><span class="overline">EQUIPE</span><h2>Novo usuário</h2></div><button class="icon-button close-dialog" type="button">×</button></div>
+      <div class="form-grid"><label class="span-2">Nome completo<input name="full_name" minlength="2" maxlength="120" required></label><label>E-mail<input name="email" type="email" required></label><label>Função<select name="role" required></select></label><label class="span-2">Senha temporária<input name="password" type="password" minlength="8" maxlength="72" required></label></div>
+      <div class="modal-actions"><button class="button ghost close-dialog" type="button">Cancelar</button><button class="button primary" type="submit">Criar usuário</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="info-dialog" class="modal large"><div class="modal-heading"><div><span id="info-kicker" class="overline">DETALHES</span><h2 id="info-title">Informações</h2></div><button class="icon-button close-dialog" type="button">×</button></div><div id="info-content"></div><div class="modal-actions"><button class="button primary close-dialog" type="button">Fechar</button></div></dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <div id="loading-overlay" class="loading-overlay hidden"><span class="spinner"></span></div>
+</body>
+</html>

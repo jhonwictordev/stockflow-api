@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.db
+.env
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+work
+outputs
