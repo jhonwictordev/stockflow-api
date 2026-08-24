@@ -97,7 +97,7 @@ async def async_main(email: str, password: str) -> None:
     print(f"Organização de demonstração {action}.")
     print(f"Produtos adicionados: {result.created_products}")
     print(f"Login: {email}")
-    print(f"Senha: {password}")
+    print("Senha configurada com sucesso (valor não exibido).")
 
 
 def main() -> None:
