@@ -1,0 +1,50 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+    spike_limit_mib: 32
+  transform/metrics_privacy:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - delete_key(attributes, "tenant.id")
+          - delete_key(attributes, "tenant_id")
+          - delete_key(attributes, "user.id")
+          - delete_key(attributes, "customer.name")
+          - delete_key(attributes, "product.id")
+          - delete_key(attributes, "request.id")
+  batch:
+    send_batch_size: 512
+    timeout: 2s
+
+exporters:
+  otlphttp/tempo:
+    endpoint: http://tempo:4318
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    enable_open_metrics: true
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/metrics_privacy, batch]
+      exporters: [prometheus]

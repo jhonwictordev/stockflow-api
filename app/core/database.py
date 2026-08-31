@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.observability import traced_span
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -25,5 +26,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
         except Exception:
-            await session.rollback()
+            if session.in_transaction():
+                with traced_span(
+                    "db.session.rollback",
+                    attributes={"db.operation.name": "ROLLBACK"},
+                ):
+                    await session.rollback()
             raise

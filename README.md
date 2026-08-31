@@ -20,6 +20,9 @@ organização, RBAC, JWT, transações de estoque, migrações e testes de integ
 - Painel administrativo completo para demonstrar autenticação, produtos, estoque,
   vendas e usuários diretamente no navegador.
 - Comando idempotente para carregar uma organização e produtos demonstrativos.
+- Tracing OpenTelemetry de requisições e transações, correlacionado por
+  `request_id`, com métricas de negócio sem identificação do tenant.
+- Stack local com Collector, Prometheus, Tempo, Grafana e dashboard versionado.
 
 ## Arquitetura
 
@@ -39,6 +42,7 @@ app/
 ├── tests/                    # testes unitários e de integração
 └── main.py                   # composição da aplicação
 alembic/                      # migrações versionadas
+observability/                # Collector, Prometheus, Tempo e Grafana
 ```
 
 O endpoint recebe e valida o contrato, a dependência resolve identidade e
@@ -96,6 +100,7 @@ Defina segredos distintos para a API e o PostgreSQL antes de subir os serviços:
 ```bash
 export SECRET_KEY="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+export GRAFANA_ADMIN_PASSWORD="$(openssl rand -hex 24)"
 docker compose up --build
 ```
 
@@ -104,6 +109,7 @@ No PowerShell:
 ```powershell
 $env:SECRET_KEY = '<segredo-aleatorio-com-32-ou-mais-caracteres>'
 $env:POSTGRES_PASSWORD = '<senha-exclusiva-do-banco>'
+$env:GRAFANA_ADMIN_PASSWORD = '<senha-exclusiva-do-grafana>'
 docker compose up --build
 ```
 
@@ -111,11 +117,39 @@ O container da API aplica `alembic upgrade head` antes de iniciar.
 No Compose, a documentação interativa permanece desativada por padrão; defina
 `ENABLE_DOCS=true` apenas no ambiente local se quiser expor Swagger e ReDoc.
 
+A stack também disponibiliza, somente no host local:
+
+- Grafana e dashboard StockFlow: <http://localhost:3001>
+- Prometheus: <http://localhost:9090>
+- Tempo: <http://localhost:3200>
+- Receiver OTLP/HTTP do Collector: <http://localhost:4318>
+
 Para produção, configure também `ENVIRONMENT=production`, `ALLOWED_HOSTS` com
 o domínio público e `CORS_ORIGINS` somente com origens HTTPS autorizadas. Swagger,
 ReDoc e OpenAPI ficam desativados por padrão nesse ambiente. Publique a API atrás
 de um reverse proxy com TLS e rate limiting distribuído; o limitador interno é uma
 segunda camada por processo.
+
+## Observabilidade de vendas
+
+O fluxo `POST /api/v1/sales` produz um trace com os spans de servidor HTTP,
+autenticação JWT, consulta do usuário, decisão RBAC, transação, consulta de
+produtos, bloqueio pessimista, persistência, commit ou rollback e consulta do
+resultado. O header `X-Request-ID` devolvido pela API também é gravado em cada
+span como `request.id`, permitindo encontrar a execução no Tempo sem transformar
+esse identificador em label de métrica.
+
+Métricas exportadas pelo aplicativo:
+
+- `stockflow.sales.completed`: commits de vendas confirmados;
+- `stockflow.sales.rollbacks`: transações de venda revertidas;
+- `stockflow.sales.insufficient_stock`: rejeições por falta de estoque;
+- `stockflow.sales.transaction.duration`: histograma de duração da transação.
+
+As métricas não recebem e-mail, nome, usuário, produto, `tenant_id` nem
+`request_id`. O Collector remove esses atributos defensivamente caso sejam
+adicionados por engano no futuro. Consulte [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md)
+para operação, consultas PromQL/TraceQL e decisões de privacidade.
 
 ## Fluxo rápido da API
 
@@ -162,6 +196,7 @@ E-mail e senha podem ser alterados com `--email` e `--password`.
 - contêiner Alpine não-root, somente leitura, sem capabilities e sem privilégios;
 - Bandit, `pip-audit`, CodeQL, Dependabot e ações fixadas por commit no CI;
 - isolamento por `tenant_id` e autorização RBAC validada no banco a cada requisição.
+- telemetria sem PII/tenant nas métricas e correlação de traces por ID opaco.
 
 Endpoints principais:
 
