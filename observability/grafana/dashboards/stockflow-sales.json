@@ -1,0 +1,110 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Métricas agregadas e sem identificação de cliente, usuário ou tenant para o fluxo de vendas do StockFlow.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(stockflow_sales_completed_total)", "instant": true, "legendFormat": "Concluídas", "range": false, "refId": "A"}],
+      "title": "Vendas concluídas",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "orange"}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(stockflow_sales_rollbacks_total)", "instant": true, "legendFormat": "Rollbacks", "range": false, "refId": "A"}],
+      "title": "Rollbacks de venda",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "red"}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(stockflow_sales_insufficient_stock_total)", "instant": true, "legendFormat": "Sem estoque", "range": false, "refId": "A"}],
+      "title": "Estoque insuficiente",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 2}, {"color": "red", "value": 5}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "100 * sum(increase(stockflow_sales_rollbacks_total[1h])) / clamp_min(sum(increase(stockflow_sales_completed_total[1h])) + sum(increase(stockflow_sales_rollbacks_total[1h])), 1)", "instant": true, "legendFormat": "Rollback", "range": false, "refId": "A"}],
+      "title": "Taxa de rollback (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 18, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 14, "x": 0, "y": 5},
+      "id": 5,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(stockflow_sales_completed_total[$__rate_interval]))", "legendFormat": "Vendas/s", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(stockflow_sales_rollbacks_total[$__rate_interval]))", "legendFormat": "Rollbacks/s", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(stockflow_sales_insufficient_stock_total[$__rate_interval]))", "legendFormat": "Estoque insuficiente/s", "range": true, "refId": "C"}
+      ],
+      "title": "Resultados das transações",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 12, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 10, "x": 14, "y": 5},
+      "id": 6,
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(stockflow_sales_transaction_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p95", "range": true, "refId": "A"}],
+      "title": "Duração da transação (p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "-- Mixed --", "uid": "-- Mixed --"},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 14},
+      "id": 7,
+      "options": {
+        "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+        "content": "### Da métrica ao trace\n\nAbra **Explore → Tempo** e pesquise pelo atributo `span.request.id` usando o valor devolvido no header `X-Request-ID`. O trace mostra autenticação, consulta do usuário, decisão RBAC, transação, `SELECT FOR UPDATE`, persistência, commit ou rollback.\n\nAs métricas são deliberadamente agregadas: não possuem `tenant_id`, usuário, cliente, produto nem `request_id` como labels.",
+        "mode": "markdown"
+      },
+      "title": "Correlação segura",
+      "type": "text"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["stockflow", "vendas", "opentelemetry"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "StockFlow — Vendas e Transações",
+  "uid": "stockflow-sales",
+  "version": 1,
+  "weekStart": "monday"
+}

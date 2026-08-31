@@ -13,6 +13,11 @@ flowchart LR
     API --> SVC[Serviços de aplicação]
     SVC --> ORM[SQLAlchemy async]
     ORM --> DB[(SQLite / PostgreSQL)]
+    API --> OTEL[OpenTelemetry Collector]
+    OTEL --> PROM[(Prometheus)]
+    OTEL --> TEMPO[(Tempo)]
+    PROM --> GRAFANA[Grafana]
+    TEMPO --> GRAFANA
 ```
 
 ## Isolamento multi-tenant
@@ -61,6 +66,49 @@ movimentações.
 Itens guardam nome, SKU e preço como snapshot; alterações futuras no catálogo
 não reescrevem o histórico financeiro.
 
+## Observabilidade transacional
+
+O span HTTP é a raiz do trace e usa o template da rota, nunca a URL com UUIDs.
+As dependências e o serviço criam a seguinte árvore para uma venda concluída:
+
+```text
+POST /api/v1/sales
+├── auth.authenticate
+│   ├── auth.jwt.decode
+│   └── auth.user.query
+├── auth.rbac
+└── sales.transaction
+    ├── sales.products.query
+    │   └── sales.stock.lock
+    ├── sales.persist
+    └── sales.transaction.commit
+└── sales.detail.query
+```
+
+Uma falha troca o commit por `sales.transaction.rollback`. Falta de estoque
+também gera o evento seguro `sales.insufficient_stock`, sem SKU, produto,
+cliente, usuário ou tenant. Exceções não são registradas automaticamente nos
+spans de negócio para impedir que mensagens com dados internos sejam exportadas.
+
+O `request_id` é validado como identificador opaco, propagado por `ContextVar`,
+incluído nos logs e anexado aos spans. Métricas deliberadamente não usam esse
+valor como label, evitando alta cardinalidade. Os instrumentos de negócio só
+possuem a dimensão limitada `outcome` no histograma (`committed` ou
+`rolled_back`), e o Collector remove chaves sensíveis como defesa adicional.
+
+```mermaid
+flowchart LR
+    REQ[POST venda + X-Request-ID] --> API[FastAPI]
+    API --> SPANS[Spans manuais seguros]
+    API --> METRICS[Métricas agregadas]
+    SPANS --> COL[OTel Collector]
+    METRICS --> COL
+    COL --> TEMPO[(Tempo)]
+    COL --> PROM[(Prometheus)]
+    TEMPO --> GF[Grafana]
+    PROM --> GF
+```
+
 ## Decisões de modelagem
 
 - UUIDs evitam IDs sequenciais previsíveis na API.
@@ -81,4 +129,4 @@ de verdade e rejeita qualquer operação não autorizada, independentemente da U
 
 Em uma implantação comercial, os próximos passos naturais seriam refresh token
 com rotação/revogação, auditoria de alterações de usuários, rate limiting no
-gateway, observabilidade OpenTelemetry e filas para relatórios ou integrações.
+gateway, amostragem dinâmica de traces e filas para relatórios ou integrações.

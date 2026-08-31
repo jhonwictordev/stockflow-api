@@ -1,12 +1,21 @@
 import uuid
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from time import perf_counter
 
+from opentelemetry.trace import Status, StatusCode
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, InsufficientStockError, NotFoundError
+from app.core.observability import (
+    mark_span_error,
+    record_insufficient_stock,
+    record_sale_completed,
+    record_sale_rollback,
+    traced_span,
+)
 from app.models.product import Product
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.stock import StockMovement, StockMovementType
@@ -17,81 +26,145 @@ MONEY = Decimal("0.01")
 
 
 async def create_sale(db: AsyncSession, actor: User, data: SaleCreate) -> Sale:
-    requested_ids = [item.product_id for item in data.items]
-    result = await db.scalars(
-        select(Product)
-        .where(
-            Product.tenant_id == actor.tenant_id,
-            Product.id.in_(requested_ids),
-            Product.is_active.is_(True),
-        )
-        .order_by(Product.id)
-        .with_for_update()
-    )
-    products = {product.id: product for product in result}
-    if len(products) != len(requested_ids):
-        raise NotFoundError("Um ou mais produtos não existem ou estão inativos")
+    started_at = perf_counter()
+    item_count = len(data.items)
+    with traced_span(
+        "sales.transaction",
+        attributes={"stockflow.sale.item_count": item_count},
+    ) as transaction_span:
+        try:
+            requested_ids = [item.product_id for item in data.items]
+            with traced_span(
+                "sales.products.query",
+                attributes={
+                    "db.operation.name": "SELECT",
+                    "db.collection.name": "products",
+                },
+            ) as query_span:
+                statement = (
+                    select(Product)
+                    .where(
+                        Product.tenant_id == actor.tenant_id,
+                        Product.id.in_(requested_ids),
+                        Product.is_active.is_(True),
+                    )
+                    .order_by(Product.id)
+                    .with_for_update()
+                )
+                with traced_span(
+                    "sales.stock.lock",
+                    attributes={
+                        "db.operation.name": "SELECT FOR UPDATE",
+                        "db.lock.mode": "pessimistic_write",
+                        "stockflow.sale.item_count": item_count,
+                    },
+                ):
+                    result = await db.scalars(statement)
+                products = {product.id: product for product in result}
+                query_span.set_attribute("db.response.returned_rows", len(products))
+            if len(products) != len(requested_ids):
+                raise NotFoundError("Um ou mais produtos não existem ou estão inativos")
 
-    sale = Sale(
-        tenant_id=actor.tenant_id,
-        number=f"VEN-{datetime.now(UTC):%Y%m%d}-{uuid.uuid4().hex[:8].upper()}",
-        created_by_id=actor.id,
-        customer_name=data.customer_name.strip() if data.customer_name else None,
-        total=Decimal("0.00"),
-        status=SaleStatus.COMPLETED,
-        items=[],
-    )
-    db.add(sale)
-    await db.flush()
+            with traced_span("sales.persist"):
+                sale = Sale(
+                    tenant_id=actor.tenant_id,
+                    number=(
+                        f"VEN-{datetime.now(UTC):%Y%m%d}-{uuid.uuid4().hex[:8].upper()}"
+                    ),
+                    created_by_id=actor.id,
+                    customer_name=(
+                        data.customer_name.strip() if data.customer_name else None
+                    ),
+                    total=Decimal("0.00"),
+                    status=SaleStatus.COMPLETED,
+                    items=[],
+                )
+                db.add(sale)
+                await db.flush()
 
-    total = Decimal("0.00")
-    for requested_item in data.items:
-        product = products[requested_item.product_id]
-        if product.stock_quantity < requested_item.quantity:
-            product_sku = product.sku
-            await db.rollback()
-            raise InsufficientStockError(
-                f"Estoque insuficiente para o produto {product_sku}"
-            )
-        product.stock_quantity -= requested_item.quantity
-        subtotal = (product.price * requested_item.quantity).quantize(
-            MONEY, rounding=ROUND_HALF_UP
-        )
-        total += subtotal
-        sale.items.append(
-            SaleItem(
-                product_id=product.id,
-                product_name=product.name,
-                sku=product.sku,
-                quantity=requested_item.quantity,
-                unit_price=product.price,
-                subtotal=subtotal,
-            )
-        )
-        db.add(
-            StockMovement(
-                tenant_id=actor.tenant_id,
-                product_id=product.id,
-                created_by_id=actor.id,
-                movement_type=StockMovementType.SALE,
-                quantity_change=-requested_item.quantity,
-                balance_after=product.stock_quantity,
-                reason=f"Venda {sale.number}",
-                reference_id=sale.id,
-            )
-        )
+                total = Decimal("0.00")
+                for requested_item in data.items:
+                    product = products[requested_item.product_id]
+                    if product.stock_quantity < requested_item.quantity:
+                        raise InsufficientStockError(
+                            f"Estoque insuficiente para o produto {product.sku}"
+                        )
+                    product.stock_quantity -= requested_item.quantity
+                    subtotal = (product.price * requested_item.quantity).quantize(
+                        MONEY, rounding=ROUND_HALF_UP
+                    )
+                    total += subtotal
+                    sale.items.append(
+                        SaleItem(
+                            product_id=product.id,
+                            product_name=product.name,
+                            sku=product.sku,
+                            quantity=requested_item.quantity,
+                            unit_price=product.price,
+                            subtotal=subtotal,
+                        )
+                    )
+                    db.add(
+                        StockMovement(
+                            tenant_id=actor.tenant_id,
+                            product_id=product.id,
+                            created_by_id=actor.id,
+                            movement_type=StockMovementType.SALE,
+                            quantity_change=-requested_item.quantity,
+                            balance_after=product.stock_quantity,
+                            reason=f"Venda {sale.number}",
+                            reference_id=sale.id,
+                        )
+                    )
 
-    sale.total = total.quantize(MONEY, rounding=ROUND_HALF_UP)
-    await db.commit()
+                sale.total = total.quantize(MONEY, rounding=ROUND_HALF_UP)
+            with traced_span(
+                "sales.transaction.commit",
+                attributes={"db.operation.name": "COMMIT"},
+            ):
+                await db.commit()
+        except InsufficientStockError:
+            record_insufficient_stock()
+            transaction_span.add_event("sales.insufficient_stock")
+            mark_span_error(transaction_span, "insufficient_stock")
+            with traced_span(
+                "sales.transaction.rollback",
+                attributes={"db.operation.name": "ROLLBACK"},
+            ):
+                await db.rollback()
+            record_sale_rollback(perf_counter() - started_at)
+            raise
+        except Exception:
+            mark_span_error(transaction_span, "sales_transaction_failed")
+            with traced_span(
+                "sales.transaction.rollback",
+                attributes={"db.operation.name": "ROLLBACK"},
+            ):
+                await db.rollback()
+            record_sale_rollback(perf_counter() - started_at)
+            raise
+
+        duration_seconds = perf_counter() - started_at
+        transaction_span.set_attribute("transaction.outcome", "committed")
+        transaction_span.set_status(Status(StatusCode.OK))
+        record_sale_completed(duration_seconds)
+
     return await get_sale(db, actor.tenant_id, sale.id)
 
 
 async def get_sale(db: AsyncSession, tenant_id: uuid.UUID, sale_id: uuid.UUID) -> Sale:
-    sale = await db.scalar(
-        select(Sale)
-        .options(selectinload(Sale.items))
-        .where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
-    )
+    with traced_span(
+        "sales.detail.query",
+        attributes={
+            "db.operation.name": "SELECT",
+            "db.collection.name": "sales",
+        },
+    ):
+        sale = await db.scalar(
+            select(Sale)
+            .options(selectinload(Sale.items))
+            .where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+        )
     if sale is None:
         raise NotFoundError("Venda não encontrada")
     return sale

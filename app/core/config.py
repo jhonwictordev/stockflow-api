@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "StockFlow API"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "1.1.0"
     ENVIRONMENT: Literal["development", "test", "production"] = "development"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
@@ -39,6 +39,17 @@ class Settings(BaseSettings):
         le=10_485_760,
     )
     ENABLE_DOCS: bool | None = None
+
+    OTEL_ENABLED: bool = False
+    OTEL_SERVICE_NAME: str = Field(default="stockflow-api", min_length=1, max_length=63)
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4318"
+    OTEL_EXPORT_INTERVAL_MILLISECONDS: int = Field(
+        default=5_000,
+        ge=1_000,
+        le=60_000,
+    )
+    OTEL_EXPORT_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
+    OTEL_TRACE_SAMPLE_RATIO: float = Field(default=1.0, ge=0.0, le=1.0)
 
     CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [

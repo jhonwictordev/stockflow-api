@@ -20,6 +20,8 @@ jobs:
       SECRET_KEY: ci-only-secret-with-enough-length-and-diversity-123456789
       DATABASE_URL: sqlite+aiosqlite:///./ci.db
       AUTH_RATE_LIMIT_REQUESTS: 1000
+      POSTGRES_PASSWORD: ci-only-database-password
+      GRAFANA_ADMIN_PASSWORD: ci-only-grafana-password
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -36,6 +38,8 @@ jobs:
       - run: alembic check
       - run: pytest
       - run: node --check app/static/app.js
+      - run: python -m json.tool observability/grafana/dashboards/stockflow-sales.json > /dev/null
+      - run: docker compose config --quiet
 
   container:
     runs-on: ubuntu-latest
@@ -44,3 +48,97 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build --tag stockflow-api:ci .
       - run: docker build --file Dockerfile.postgres --tag stockflow-postgres:ci .
+      - run: >-
+          docker run --rm
+          --volume "$PWD/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro"
+          otel/opentelemetry-collector-contrib:0.159.0@sha256:1f2c54a30e713fac6b3ae77a1ec84010c2007e29ced8ec666214fc2f6739c1cc
+          validate --config=/etc/otelcol-contrib/config.yaml
+      - run: >-
+          docker run --rm
+          --entrypoint /bin/promtool
+          --volume "$PWD/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+          prom/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a
+          check config /etc/prometheus/prometheus.yml
+
+  observability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: stockflow-observability-ci
+      ENVIRONMENT: development
+      POSTGRES_PASSWORD: ci-only-database-password
+      SECRET_KEY: ci-only-secret-with-enough-length-and-diversity-123456789
+      GRAFANA_ADMIN_PASSWORD: ci-only-grafana-password
+      ENABLE_DOCS: "false"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Iniciar a aplicação e a stack de observabilidade
+        run: docker compose up --detach --build
+      - name: Aguardar os serviços
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8000/health > /dev/null && \
+               curl --fail --silent http://localhost:9090/-/ready > /dev/null && \
+               curl --fail --silent http://localhost:3200/ready > /dev/null && \
+               curl --fail --silent http://localhost:3001/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Registrar uma venda rastreada
+        run: |
+          docker compose exec --no-tty api python -m app.cli.seed_demo
+          token="$(curl --fail --silent \
+            --request POST http://localhost:8000/api/v1/auth/token \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'username=demo@stockflow.dev' \
+            --data-urlencode 'password=Demo@StockFlow123' | jq --raw-output '.access_token')"
+          test -n "$token"
+          product_id="$(curl --fail --silent \
+            http://localhost:8000/api/v1/products?limit=1 \
+            --header "Authorization: Bearer $token" | jq --raw-output '.items[0].id')"
+          test -n "$product_id"
+          curl --fail --silent \
+            --request POST http://localhost:8000/api/v1/sales \
+            --header "Authorization: Bearer $token" \
+            --header 'Content-Type: application/json' \
+            --header 'X-Request-ID: ci-sale-request-001' \
+            --data "{\"customer_name\":\"Cliente CI privado\",\"items\":[{\"product_id\":\"$product_id\",\"quantity\":1}]}" \
+            | jq --exit-status '.status == "completed"' > /dev/null
+      - name: Verificar métricas, trace, privacidade e dashboard
+        run: |
+          metric_found=false
+          trace_found=false
+          for attempt in {1..30}; do
+            if curl --fail --silent --get http://localhost:9090/api/v1/query \
+              --data-urlencode 'query=stockflow_sales_completed_total' \
+              | jq --exit-status '.data.result | length > 0' > /dev/null; then
+              metric_found=true
+            fi
+            if curl --fail --silent --get http://localhost:3200/api/search \
+              --data-urlencode 'q={ span.request.id = "ci-sale-request-001" }' \
+              | jq --exit-status '.traces | length > 0' > /dev/null; then
+              trace_found=true
+            fi
+            if [[ "$metric_found" == true && "$trace_found" == true ]]; then
+              break
+            fi
+            sleep 2
+          done
+          [[ "$metric_found" == true ]]
+          [[ "$trace_found" == true ]]
+          curl --fail --silent --get http://localhost:9090/api/v1/series \
+            --data-urlencode 'match[]=stockflow_sales_completed_total' \
+            | jq --exit-status 'all(.data[]; ((has("tenant.id") or has("tenant_id") or has("user.id") or has("customer.name") or has("product.id") or has("request.id")) | not))' \
+            > /dev/null
+          curl --fail --silent \
+            --user "admin:$GRAFANA_ADMIN_PASSWORD" \
+            http://localhost:3001/api/dashboards/uid/stockflow-sales \
+            | jq --exit-status '.dashboard.uid == "stockflow-sales"' > /dev/null
+      - name: Exibir logs em caso de falha
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+      - name: Encerrar a stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
