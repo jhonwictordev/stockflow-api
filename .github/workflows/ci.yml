@@ -41,6 +41,44 @@ jobs:
       - run: python -m json.tool observability/grafana/dashboards/stockflow-sales.json > /dev/null
       - run: docker compose config --quiet
 
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENVIRONMENT: test
+      SECRET_KEY: ci-only-secret-with-enough-length-and-diversity-123456789
+      TEST_POSTGRES_URL: postgresql+asyncpg://stockflow:ci-test-password@localhost:5432/stockflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: stockflow
+          POSTGRES_PASSWORD: ci-test-password
+          POSTGRES_DB: stockflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stockflow -d stockflow_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Suíte integral em PostgreSQL e disputas reais por bloqueio
+        run: pytest --database=postgres --evidence-dir=outputs/evidence --junitxml=outputs/postgres.xml
+      - name: Guardar evidências sintéticas e relatório de testes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: postgres-evidence
+          path: |
+            outputs/evidence/
+            outputs/postgres.xml
+          retention-days: 30
+
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 15
