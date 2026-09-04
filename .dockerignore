@@ -12,3 +12,6 @@ htmlcov
 work
 outputs
 observability
+demo
+scripts
+requirements-demo.txt

@@ -175,6 +175,7 @@ async def test_rollback_releases_locks_for_queued_purchase(
     register_user: RegisterUser,
     db_engine: AsyncEngine,
     db_session_factory: async_sessionmaker[AsyncSession],
+    trace_capture: InMemorySpanExporter,
 ) -> None:
     _, headers = await register_user(client)
     first = await create_product(client, headers, sku="AVAILABLE", stock=2)
@@ -184,7 +185,7 @@ async def test_rollback_releases_locks_for_queued_purchase(
     responses, _ = await contend(
         db_engine,
         db_session_factory,
-        select(Product).order_by(Product.id).with_for_update(),
+        select(Product).where(Product.id == uuid.UUID(first["id"])).with_for_update(),
         [
             lambda: client.post(
                 "/api/v1/sales", headers=headers, json={"items": bad_items}
@@ -193,8 +194,13 @@ async def test_rollback_releases_locks_for_queued_purchase(
                 "/api/v1/sales", headers=headers, json={"items": good_items}
             ),
         ],
+        queue_first=True,
     )
     assert [r.status_code for r in responses] == [422, 201]
+    spans = trace_capture.get_finished_spans()
+    rollback = next(s for s in spans if s.name == "sales.transaction.rollback")
+    commit = next(s for s in spans if s.name == "sales.transaction.commit")
+    assert rollback.end_time <= commit.start_time
     async with db_session_factory() as db:
         assert (
             await db.scalar(

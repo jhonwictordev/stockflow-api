@@ -4,6 +4,48 @@ API RESTful de gestão de estoque e vendas para um SaaS multi-tenant simples. O
 projeto demonstra FastAPI assíncrono, arquitetura em camadas, isolamento por
 organização, RBAC, JWT, transações de estoque, migrações e testes de integração.
 
+## Demonstração e evidências
+
+[Abrir demonstração pública](https://jhonwictordev.github.io/stockflow-api/) ·
+[Assistir ao vídeo de 40 segundos](https://jhonwictordev.github.io/stockflow-api/stockflow-demo.mp4) ·
+[Reproduzir os testes](docs/POSTGRES_TESTING.md)
+
+A página apresenta uma **execução gravada com dados fictícios**, vídeo legendado
+e traces consultáveis. Não é uma API hospedada: o vídeo visualiza dados de um
+teste real de FastAPI + PostgreSQL, e a página não simula o backend em JavaScript.
+Para experimentar a API e o painel interativo, use a execução local/Compose abaixo.
+
+Na [execução de referência](https://github.com/jhonwictordev/stockflow-api/actions/runs/33846711745),
+os **40 testes no PostgreSQL 16.15 passaram, sem skips**. A última unidade foi
+disputada em cinco cenários isolados. Antes de soltar a linha, cada teste confirmou
+dois PIDs realmente bloqueados por `FOR UPDATE`; depois, exigiu:
+
+| Resultado | Estado confirmado no banco |
+|---|---|
+| Uma resposta `201`, outra `422` | Uma única venda e um único item |
+| Saldo final `0` | Uma única movimentação de saída |
+| Um commit e um rollback | Nenhuma alteração parcial da tentativa rejeitada |
+
+### Exemplo real de trace
+
+![Trace OpenTelemetry de uma venda concorrente no PostgreSQL](docs/examples/trace-example.svg)
+
+Exemplo capturado em 04/09/2026, commit `86217d7`, com `request_id=demo-purchase-b`.
+A compra B confirmou o commit; a compra A fez rollback por falta de estoque. O
+vencedor não é fixo nem presumido pelo teste. Os tempos incluem uma barreira
+deliberada e **não representam um benchmark**. O [JSON versionado](docs/examples/last-item-race.json)
+contém os dois traces e a origem verificável da execução.
+
+No Tempo, uma requisição pode ser encontrada com:
+
+```traceql
+{ resource.service.name = "stockflow-api" && span.request.id = "<X-Request-ID>" }
+```
+
+O exemplo versionado é um export do teste; ele não é automaticamente importado
+no seu Tempo local. Na demonstração pública, o CI gera uma evidência nova para
+cada publicação aprovada da `main`.
+
 ## Principais recursos
 
 - Cadastro de organização com criação automática do usuário `owner`.
@@ -13,8 +55,8 @@ organização, RBAC, JWT, transações de estoque, migrações e testes de integ
 - Catálogo de produtos, busca, paginação e filtro de estoque baixo.
 - Ajustes de estoque com trilha de movimentações.
 - Venda atômica com snapshot de preço/produto e baixa de estoque.
-- Cancelamento idempotente protegido, com reposição de estoque e auditoria.
-- SQLite no desenvolvimento/teste e PostgreSQL no Docker/produção.
+- Cancelamento protegido contra reposição duplicada, com auditoria.
+- SQLite na suíte rápida e PostgreSQL na integração, Docker e produção.
 - OpenAPI/Swagger e ReDoc gerados automaticamente.
 - Página inicial responsiva, em português, para apresentação do projeto.
 - Painel administrativo completo para demonstrar autenticação, produtos, estoque,
@@ -43,6 +85,8 @@ app/
 └── main.py                   # composição da aplicação
 alembic/                      # migrações versionadas
 observability/                # Collector, Prometheus, Tempo e Grafana
+demo/                         # apresentação pública das evidências e do vídeo
+scripts/build_demo.py         # vídeo e trace visual gerados a partir do CI real
 ```
 
 O endpoint recebe e valida o contrato, a dependência resolve identidade e
@@ -212,6 +256,20 @@ Endpoints principais:
 
 ## Decisões de segurança e consistência
 
+| Decisão | Justificativa e limite |
+|---|---|
+| Uma `AsyncSession` por requisição | Sessões são estado mutável de uma transação; não podem ser compartilhadas entre tarefas concorrentes. |
+| `SELECT FOR UPDATE` no PostgreSQL | Protege o saldo entre processos/réplicas, ao contrário de um lock apenas em memória Python. Após esperar, a próxima compra lê o saldo confirmado. |
+| Locks ordenados por UUID | Reduz deadlocks ao vender vários produtos em ordens diferentes; não garante ausência de deadlocks em qualquer operação futura. |
+| `READ COMMITTED` + transação atômica | Adequado à invariante por linha neste fluxo. Venda, itens, saldo e movimentação confirmam ou revertem juntos. |
+| PostgreSQL real além de SQLite | SQLite não exerce `FOR UPDATE`; os testes de integração usam conexões distintas e schemas criados por Alembic, sem uma transação compartilhada que mascare commits. |
+| Spans manuais e métricas agregadas | Mostram regras de negócio sem exportar SQL com parâmetros, JWT ou dados pessoais. `request_id` fica nos spans/logs, não em labels. |
+| Camadas modulares, sem abstrações redundantes | Endpoints tratam HTTP, serviços concentram regras e SQLAlchemy cuida da persistência. Não se afirma um domínio independente do ORM: esse acoplamento foi aceito para manter o projeto pequeno e legível. |
+
+As bases dessas escolhas estão nas documentações de
+[locks do PostgreSQL](https://www.postgresql.org/docs/16/explicit-locking.html) e
+[concorrência de sessões SQLAlchemy](https://docs.sqlalchemy.org/en/20/orm/session_basics.html#is-the-session-thread-safe-is-asyncsession-safe-to-share-in-concurrent-tasks).
+
 - Senhas nunca são armazenadas em texto puro; `bcrypt` aplica salt e custo.
 - O token contém identidade e contexto, mas o usuário e seu estado ativo são
   novamente validados no banco em cada requisição.
@@ -230,16 +288,23 @@ execute atrás de TLS/reverse proxy e aplique rate limiting no gateway.
 
 ```bash
 pytest
+pytest --database=postgres --evidence-dir=outputs/evidence
 ruff check .
 ruff format --check .
 mypy app
 alembic check
 ```
 
-Os testes usam SQLite em memória, substituem a dependência de sessão da API e
-cobrem autenticação, RBAC, isolamento de tenant e o ciclo venda/cancelamento.
-O workflow em `.github/workflows/ci.yml` executa lint e testes a cada push ou PR.
-Ele também valida tipagem, consistência das migrações e o build da imagem Docker.
+A suíte padrão usa SQLite em memória. A execução PostgreSQL requer
+`TEST_POSTGRES_URL` apontando para um banco descartável terminado em `_test`;
+consulte o [comando completo e as proteções da fixture](docs/POSTGRES_TESTING.md).
+Os mesmos testes funcionais rodam nos dois bancos; os oito casos concorrentes
+são exclusivos de PostgreSQL e aparecem como skips explícitos no SQLite.
+
+O CI executa qualidade/segurança, integração PostgreSQL, build de imagens,
+observabilidade ponta a ponta e geração da demonstração. As evidências e o vídeo
+ficam nos artefatos `postgres-evidence` e `stockflow-demo`. O GitHub Pages só é
+atualizado pela `main` após os jobs aprovados, sem publicar segredos ou bancos.
 
 Atalhos equivalentes estão disponíveis no `Makefile`, por exemplo `make quality`,
 `make seed` e `make docker-up`.
@@ -247,6 +312,11 @@ Atalhos equivalentes estão disponíveis no `Makefile`, por exemplo `make qualit
 Consulte `CONTRIBUTING.md` para o fluxo de colaboração e `SECURITY.md` para as
 premissas de implantação e comunicação responsável de vulnerabilidades.
 Uma descrição mais profunda das decisões técnicas está em `docs/ARCHITECTURE.md`.
+
+Limites conhecidos: esta versão não implementa chave de idempotência para criação
+de vendas, retries automáticos de deadlock, refresh token ou rate limit
+distribuído. A disputa de duas compras diferentes não comprova proteção contra
+reenvio da mesma compra após um timeout de rede.
 
 ## Migrações futuras
 

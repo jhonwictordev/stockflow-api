@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="578" viewBox="0 0 1100 578" role="img" aria-labelledby="title desc">
+<title id="title">Trace real de uma venda StockFlow no PostgreSQL</title>
+<desc id="desc">Spans da requisição que confirmou o commit, exportados de teste com dados fictícios. A duração inclui uma barreira de bloqueio controlada.</desc>
+<rect width="1100" height="578" rx="16" fill="#080f1d"/>
+<g fill="#eff5ff" font-family="monospace" font-size="16">
+<text x="28" y="38" font-size="24">StockFlow / trace real de uma venda</text>
+<text x="28" y="70" fill="#a9b9cf">PostgreSQL 16.15 · commit 86217d7 · request_id: demo-purchase-b</text>
+<text x="28" y="108">POST /api/v1/sales</text>
+<text x="435" y="108" fill="#a9b9cf">121.23 ms</text>
+<rect x="574.0" y="95" width="490.0" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="146">auth.authenticate</text>
+<text x="435" y="146" fill="#a9b9cf">76.21 ms</text>
+<rect x="589.6" y="133" width="308.0" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="184">auth.jwt.decode</text>
+<text x="435" y="184" fill="#a9b9cf">0.08 ms</text>
+<rect x="589.8" y="171" width="3.0" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="222">auth.user.query</text>
+<text x="435" y="222" fill="#a9b9cf">76.02 ms</text>
+<rect x="590.3" y="209" width="307.2" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="260">auth.rbac</text>
+<text x="435" y="260" fill="#a9b9cf">0.02 ms</text>
+<rect x="898.2" y="247" width="3.0" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="298">sales.transaction</text>
+<text x="435" y="298" fill="#a9b9cf">33.37 ms</text>
+<rect x="898.6" y="285" width="134.9" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="336">sales.products.query</text>
+<text x="435" y="336" fill="#a9b9cf">21.36 ms</text>
+<rect x="898.8" y="323" width="86.3" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="374">sales.stock.lock</text>
+<text x="435" y="374" fill="#a9b9cf">21.03 ms</text>
+<rect x="899.9" y="361" width="85.0" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="412">sales.persist</text>
+<text x="435" y="412" fill="#a9b9cf">3.91 ms</text>
+<rect x="985.4" y="399" width="15.8" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="450">sales.transaction.commit</text>
+<text x="435" y="450" fill="#a9b9cf">7.90 ms</text>
+<rect x="1001.4" y="437" width="31.9" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="488">sales.detail.query</text>
+<text x="435" y="488" fill="#a9b9cf">7.21 ms</text>
+<rect x="1033.7" y="475" width="29.2" height="15" rx="3" fill="#62deed"/>
+<text x="28" y="554" fill="#a9b9cf">A espera inclui o bloqueio criado pelo teste. Não é benchmark.</text></g></svg>

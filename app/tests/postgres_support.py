@@ -14,7 +14,7 @@ from sqlalchemy import Select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 
-async def wait_for_two_blocked_connections(engine: AsyncEngine) -> int:
+async def wait_for_blocked_connections(engine: AsyncEngine, expected: int) -> int:
     async with engine.connect() as connection:
         connection = await connection.execution_options(isolation_level="AUTOCOMMIT")
         async with asyncio.timeout(6):
@@ -31,8 +31,8 @@ async def wait_for_two_blocked_connections(engine: AsyncEngine) -> int:
                         )
                     )
                 )
-                if len(set(blocked)) == 2:
-                    return 2
+                if len(set(blocked)) == expected:
+                    return expected
                 await asyncio.sleep(0.02)
 
 
@@ -41,13 +41,18 @@ async def contend(
     sessions: async_sessionmaker[AsyncSession],
     lock_statement: Select,
     operations: Sequence[Callable[[], Coroutine[Any, Any, Response]]],
+    *,
+    queue_first: bool = False,
 ) -> tuple[list[Response], int]:
     tasks: list[asyncio.Task[Response]] = []
     async with sessions() as blocker:
         try:
             await blocker.execute(lock_statement)
-            tasks = [asyncio.create_task(operation()) for operation in operations]
-            blocked_connections = await wait_for_two_blocked_connections(engine)
+            for index, operation in enumerate(operations):
+                tasks.append(asyncio.create_task(operation()))
+                if index == 0 and queue_first:
+                    await wait_for_blocked_connections(engine, 1)
+            blocked_connections = await wait_for_blocked_connections(engine, 2)
             await blocker.commit()
             async with asyncio.timeout(15):
                 return list(await asyncio.gather(*tasks)), blocked_connections

@@ -66,6 +66,22 @@ movimentações.
 Itens guardam nome, SKU e preço como snapshot; alterações futuras no catálogo
 não reescrevem o histórico financeiro.
 
+### Concorrência verificada, não presumida
+
+Cada requisição possui sua própria sessão e transação. Em `READ COMMITTED`, o
+`SELECT FOR UPDATE` que espera uma venda anterior passa a ler a versão atualizada
+da linha após o commit. Todos os produtos são bloqueados em ordem de UUID para
+reduzir ciclos de espera entre pedidos com múltiplos itens.
+
+Os testes não compartilham uma transação externa com a API: commits são reais.
+Um schema aleatório por caso é criado com Alembic e descartado ao final. Uma
+barreira segura a linha enquanto duas requisições chegam; `pg_stat_activity` e
+`pg_blocking_pids()` comprovam a espera de ambas antes de a barreira ser liberada.
+As asserções leem novamente venda, itens, saldo e movimentações em outra sessão.
+
+Veja [POSTGRES_TESTING.md](POSTGRES_TESTING.md) para o protocolo, limites,
+time-outs, limpeza segura, oito cenários e comandos de reprodução.
+
 ## Observabilidade transacional
 
 O span HTTP é a raiz do trace e usa o template da rota, nunca a URL com UUIDs.
@@ -77,11 +93,11 @@ POST /api/v1/sales
 │   ├── auth.jwt.decode
 │   └── auth.user.query
 ├── auth.rbac
-└── sales.transaction
-    ├── sales.products.query
-    │   └── sales.stock.lock
-    ├── sales.persist
-    └── sales.transaction.commit
+├── sales.transaction
+│   ├── sales.products.query
+│   │   └── sales.stock.lock
+│   ├── sales.persist
+│   └── sales.transaction.commit
 └── sales.detail.query
 ```
 
@@ -130,3 +146,7 @@ de verdade e rejeita qualquer operação não autorizada, independentemente da U
 Em uma implantação comercial, os próximos passos naturais seriam refresh token
 com rotação/revogação, auditoria de alterações de usuários, rate limiting no
 gateway, amostragem dinâmica de traces e filas para relatórios ou integrações.
+Chaves de idempotência e retry limitado para deadlocks devem ser desenhados
+separadamente: concorrência entre compras distintas não resolve reenvios da mesma
+compra por um cliente. A demonstração pública é estática e reproduz evidências;
+não é uma implantação comercial da API.
