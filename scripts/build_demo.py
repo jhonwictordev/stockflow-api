@@ -35,8 +35,8 @@ CAPTIONS = [
     "Ao liberar a barreira, uma compra desconta a unidade e confirma. "
     "O estoque passa de um para zero.",
     "A outra compra retoma e lê zero. Recebe estoque insuficiente, "
-    "faz rollback e não grava outra venda.",
-    "O request_id liga endpoint, autenticação, permissão, lock e transação. "
+    "desfaz a transação e não grava outra venda.",
+    "Um identificador liga endpoint, autenticação, permissão, bloqueio e transação. "
     "Resultado: uma venda e estoque correto.",
 ]
 
@@ -70,14 +70,52 @@ def label(draw, xy, value, size=24, color=WHITE, *, mono=False, bold=False):
     draw.text(xy, str(value), font=FONTS[key], fill=color)
 
 
-def centered_label(draw, rect, value, size=24, color=WHITE, *, mono=False, bold=False):
-    key = (size, mono, bold)
-    if key not in FONTS:
-        FONTS[key] = font(size, mono=mono, bold=bold)
+def centered_label(
+    draw,
+    rect,
+    value,
+    size=24,
+    color=WHITE,
+    *,
+    mono=False,
+    bold=False,
+    padding=16,
+    min_size=12,
+):
     text = str(value)
-    bounds = draw.textbbox((0, 0), text, font=FONTS[key])
+    available_width = max(1, rect[2] - rect[0] - padding * 2)
+    available_height = max(1, rect[3] - rect[1] - padding)
+    chosen_size = size
+    while True:
+        key = (chosen_size, mono, bold)
+        if key not in FONTS:
+            FONTS[key] = font(chosen_size, mono=mono, bold=bold)
+        bounds = draw.textbbox((0, 0), text, font=FONTS[key])
+        width = bounds[2] - bounds[0]
+        height = bounds[3] - bounds[1]
+        if (width <= available_width and height <= available_height) or (
+            chosen_size <= min_size
+        ):
+            break
+        chosen_size -= 1
+    if width > available_width:
+        original = text
+        while text:
+            candidate = text.rstrip("…") + "…"
+            bounds = draw.textbbox((0, 0), candidate, font=FONTS[key])
+            if bounds[2] - bounds[0] <= available_width:
+                text = candidate
+                break
+            text = text[:-1]
+        if not text:
+            text = "…"
+        elif text == original:
+            text = original
+        bounds = draw.textbbox((0, 0), text, font=FONTS[key])
     width = bounds[2] - bounds[0]
     height = bounds[3] - bounds[1]
+    if width > available_width or height > available_height:
+        raise ValueError(f"Text does not fit its motion card: {value!r}")
     x = rect[0] + (rect[2] - rect[0] - width) / 2
     y = rect[1] + (rect[3] - rect[1] - height) / 2 - bounds[1]
     draw.text((x, y), text, font=FONTS[key], fill=color)
@@ -249,6 +287,7 @@ def frame(data, seconds):
             label(draw, (775, 541), "pg_blocking_pids()", 21, MUTED, mono=True)
     elif scene == 3:
         winner = next(r for r in data["responses"] if r["status_code"] == 201)
+        winner_label = "COMPRA A" if winner["request_id"].endswith("a") else "COMPRA B"
         label(draw, (56, 145), "3. Uma compra confirma", 49, bold=True)
         label(
             draw,
@@ -258,7 +297,7 @@ def frame(data, seconds):
             MUTED,
         )
         steps = [
-            (56, 300, "COMPRA", winner["request_id"], CYAN),
+            (56, 300, "REQUISIÇÃO", winner_label, CYAN),
             (364, 300, "ESTOQUE", "1 → 0", WHITE),
             (672, 300, "TRANSAÇÃO", "COMMIT", GREEN),
             (980, 300, "RESPOSTA", "HTTP 201", GREEN),
@@ -305,6 +344,9 @@ def frame(data, seconds):
             )
     elif scene == 4:
         rejected = next(r for r in data["responses"] if r["status_code"] == 422)
+        rejected_label = (
+            "COMPRA A" if rejected["request_id"].endswith("a") else "COMPRA B"
+        )
         label(draw, (56, 145), "4. A outra compra é recusada", 49, bold=True)
         label(
             draw,
@@ -314,7 +356,7 @@ def frame(data, seconds):
             MUTED,
         )
         steps = [
-            (56, 300, "COMPRA", rejected["request_id"], CYAN),
+            (56, 300, "REQUISIÇÃO", rejected_label, CYAN),
             (364, 300, "ESTOQUE", "0", WHITE),
             (672, 300, "TRANSAÇÃO", "ROLLBACK", AMBER),
             (980, 300, "RESPOSTA", "HTTP 422", AMBER),
