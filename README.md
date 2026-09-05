@@ -7,11 +7,12 @@ organização, RBAC, JWT, transações de estoque, migrações e testes de integ
 ## Demonstração e evidências
 
 [Abrir demonstração pública](https://jhonwictordev.github.io/stockflow-api/) ·
-[Assistir ao vídeo de 40 segundos](https://jhonwictordev.github.io/stockflow-api/stockflow-demo.mp4) ·
+[Assistir ao vídeo narrado de 1 minuto](https://jhonwictordev.github.io/stockflow-api/stockflow-demo.mp4) ·
 [Reproduzir os testes](docs/POSTGRES_TESTING.md)
 
-A página apresenta uma **execução gravada com dados fictícios**, vídeo legendado
-e traces consultáveis. Não é uma API hospedada: o vídeo visualiza dados de um
+A página apresenta uma **execução gravada com dados fictícios**, vídeo em motion
+design narrado e legendado em português, além de traces consultáveis. Não é uma
+API hospedada: o vídeo visualiza dados de um
 teste real de FastAPI + PostgreSQL, e a página não simula o backend em JavaScript.
 Para experimentar a API e o painel interativo, use a execução local/Compose abaixo.
 
