@@ -94,9 +94,10 @@ python scripts/build_demo.py --evidence outputs/evidence/last-item-race.json
 ```
 
 O gerador produz `outputs/site/`: página estática, JSON, SVG do trace, MP4 de 1
-minuto, poster e legendas WebVTT. O vídeo usa motion design, narração em português
-e revelação sequencial para explicar os dados capturados; não é uma gravação de
-tela nem uma simulação de backend em JavaScript.
+minuto, poster e legendas WebVTT. O vídeo usa motion design, voz neural brasileira
+e revelação sequencial para explicar os dados capturados. O renderizador mede cada
+rótulo e falha se ele não couber no card, evitando vazamentos de layout; não é uma
+gravação de tela nem uma simulação de backend em JavaScript.
 No CI, o artefato `postgres-evidence` guarda evidência e JUnit; `stockflow-demo`
 guarda o vídeo e a página. A publicação pelo GitHub Pages só ocorre na `main`
 depois de todos os jobs de qualidade, PostgreSQL, contêineres e observabilidade.
