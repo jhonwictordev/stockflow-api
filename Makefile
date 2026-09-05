@@ -1,4 +1,4 @@
-.PHONY: install migrate run test lint format typecheck audit quality seed docker-up docker-down
+.PHONY: install migrate run test test-postgres demo lint format typecheck audit quality seed docker-up docker-down
 
 install:
 	python -m pip install -r requirements-dev.txt
@@ -11,6 +11,12 @@ run:
 
 test:
 	pytest
+
+test-postgres:
+	pytest --database=postgres --evidence-dir=outputs/evidence
+
+demo:
+	python scripts/build_demo.py --evidence outputs/evidence/last-item-race.json
 
 lint:
 	ruff check .

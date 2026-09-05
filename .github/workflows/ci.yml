@@ -34,12 +34,98 @@ jobs:
       - run: mypy app
       - run: bandit -r app -x app/tests
       - run: pip-audit -r requirements-dev.txt
+      - run: pip-audit -r requirements-demo.txt
       - run: alembic upgrade head
       - run: alembic check
       - run: pytest
       - run: node --check app/static/app.js
       - run: python -m json.tool observability/grafana/dashboards/stockflow-sales.json > /dev/null
       - run: docker compose config --quiet
+
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENVIRONMENT: test
+      SECRET_KEY: ci-only-secret-with-enough-length-and-diversity-123456789
+      TEST_POSTGRES_URL: postgresql+asyncpg://stockflow:ci-test-password@localhost:5432/stockflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: stockflow
+          POSTGRES_PASSWORD: ci-test-password
+          POSTGRES_DB: stockflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stockflow -d stockflow_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Suíte integral em PostgreSQL e disputas reais por bloqueio
+        run: pytest --database=postgres --evidence-dir=outputs/evidence --junitxml=outputs/postgres.xml
+      - name: Guardar evidências sintéticas e relatório de testes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: postgres-evidence
+          path: |
+            outputs/evidence/
+            outputs/postgres.xml
+          retention-days: 30
+
+  demo:
+    needs: postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-demo.txt
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: postgres-evidence
+          path: outputs/postgres
+      - name: Gerar vídeo e página a partir da evidência real
+        run: python scripts/build_demo.py --evidence outputs/postgres/evidence/last-item-race.json
+      - name: Verificar duração e decodificação do vídeo
+        run: >-
+          python -c "import imageio_ffmpeg; n, seconds = imageio_ffmpeg.count_frames_and_secs('outputs/site/stockflow-demo.mp4'); assert n == 960 and abs(seconds - 40) < 0.1, (n, seconds)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stockflow-demo
+          path: outputs/site/
+          retention-days: 30
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        with:
+          path: outputs/site/
+
+  deploy-demo:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [quality, postgres, container, observability, demo]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar demonstração validada
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   container:
     runs-on: ubuntu-latest

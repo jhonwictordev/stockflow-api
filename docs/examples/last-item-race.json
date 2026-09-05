@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-04T07:00:20.142244+00:00",
+  "commit": "86217d7598bcd6c117d2db1d8525415b4f115c4e",
+  "run_url": "https://github.com/jhonwictordev/stockflow-api/actions/runs/33846711745",
+  "scenario": "Duas compras disputando a última unidade",
+  "data_kind": "synthetic",
+  "transport": "HTTPX ASGITransport → FastAPI → SQLAlchemy async → PostgreSQL",
+  "postgres_version": "16.15",
+  "isolation": "read committed",
+  "blocked_connections": 2,
+  "initial_stock": 1,
+  "final_stock": 0,
+  "persisted_sales": 1,
+  "persisted_items": 1,
+  "sale_stock_movements": 1,
+  "responses": [
+    {
+      "request_id": "demo-purchase-a",
+      "status_code": 422
+    },
+    {
+      "request_id": "demo-purchase-b",
+      "status_code": 201
+    }
+  ],
+  "spans": [
+    {
+      "name": "POST /api/v1/sales",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "1c849212d23c5fa8",
+      "parent_span_id": null,
+      "start_ms": 0.0,
+      "duration_ms": 120.936,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "http.request.method": "POST",
+        "http.route": "/api/v1/sales",
+        "http.response.status_code": 422
+      }
+    },
+    {
+      "name": "POST /api/v1/sales",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "b6ea84d7b9bca620",
+      "parent_span_id": null,
+      "start_ms": 0.749,
+      "duration_ms": 121.235,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "http.request.method": "POST",
+        "http.route": "/api/v1/sales",
+        "http.response.status_code": 201
+      }
+    },
+    {
+      "name": "auth.authenticate",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "e2cdc4f09bec910e",
+      "parent_span_id": "1c849212d23c5fa8",
+      "start_ms": 2.803,
+      "duration_ms": 79.711,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "auth.result": "authenticated"
+      }
+    },
+    {
+      "name": "auth.jwt.decode",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "a0e410bbdd5b3430",
+      "parent_span_id": "e2cdc4f09bec910e",
+      "start_ms": 2.838,
+      "duration_ms": 0.086,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a"
+      }
+    },
+    {
+      "name": "auth.user.query",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "c041fd3385ef310c",
+      "parent_span_id": "e2cdc4f09bec910e",
+      "start_ms": 2.966,
+      "duration_ms": 79.519,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "db.operation.name": "SELECT",
+        "db.collection.name": "users"
+      }
+    },
+    {
+      "name": "auth.authenticate",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "d2ae676f206dfda4",
+      "parent_span_id": "b6ea84d7b9bca620",
+      "start_ms": 4.617,
+      "duration_ms": 76.212,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "auth.result": "authenticated"
+      }
+    },
+    {
+      "name": "auth.jwt.decode",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "37fc70cca64fd8d7",
+      "parent_span_id": "d2ae676f206dfda4",
+      "start_ms": 4.651,
+      "duration_ms": 0.081,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b"
+      }
+    },
+    {
+      "name": "auth.user.query",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "2963afb125cb4ec9",
+      "parent_span_id": "d2ae676f206dfda4",
+      "start_ms": 4.774,
+      "duration_ms": 76.018,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "db.operation.name": "SELECT",
+        "db.collection.name": "users"
+      }
+    },
+    {
+      "name": "auth.rbac",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "d0a794d9547c3ba7",
+      "parent_span_id": "b6ea84d7b9bca620",
+      "start_ms": 80.953,
+      "duration_ms": 0.02,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "rbac.allowed_roles": "admin,manager,owner,salesperson",
+        "rbac.decision": "allow"
+      }
+    },
+    {
+      "name": "sales.transaction",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "7769b5f86d532794",
+      "parent_span_id": "b6ea84d7b9bca620",
+      "start_ms": 81.069,
+      "duration_ms": 33.368,
+      "status": "OK",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "stockflow.sale.item_count": 1,
+        "transaction.outcome": "committed"
+      }
+    },
+    {
+      "name": "sales.products.query",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "95e0f262652bedda",
+      "parent_span_id": "7769b5f86d532794",
+      "start_ms": 81.101,
+      "duration_ms": 21.363,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "db.operation.name": "SELECT",
+        "db.collection.name": "products",
+        "db.response.returned_rows": 1
+      }
+    },
+    {
+      "name": "sales.stock.lock",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "6101f8d9fadc232c",
+      "parent_span_id": "95e0f262652bedda",
+      "start_ms": 81.382,
+      "duration_ms": 21.034,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "db.operation.name": "SELECT FOR UPDATE",
+        "db.lock.mode": "pessimistic_write",
+        "stockflow.sale.item_count": 1
+      }
+    },
+    {
+      "name": "auth.rbac",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "2c94625117cf7bbb",
+      "parent_span_id": "1c849212d23c5fa8",
+      "start_ms": 82.606,
+      "duration_ms": 0.019,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "rbac.allowed_roles": "admin,manager,owner,salesperson",
+        "rbac.decision": "allow"
+      }
+    },
+    {
+      "name": "sales.transaction",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "b4fc8c7152f0e201",
+      "parent_span_id": "1c849212d23c5fa8",
+      "start_ms": 82.702,
+      "duration_ms": 37.704,
+      "status": "ERROR",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "stockflow.sale.item_count": 1,
+        "error.type": "insufficient_stock"
+      }
+    },
+    {
+      "name": "sales.products.query",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "c50a09f0dfa6934b",
+      "parent_span_id": "b4fc8c7152f0e201",
+      "start_ms": 82.737,
+      "duration_ms": 33.057,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "db.operation.name": "SELECT",
+        "db.collection.name": "products",
+        "db.response.returned_rows": 1
+      }
+    },
+    {
+      "name": "sales.stock.lock",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "b8eb4b7aa528ece0",
+      "parent_span_id": "c50a09f0dfa6934b",
+      "start_ms": 82.958,
+      "duration_ms": 32.8,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "db.operation.name": "SELECT FOR UPDATE",
+        "db.lock.mode": "pessimistic_write",
+        "stockflow.sale.item_count": 1
+      }
+    },
+    {
+      "name": "sales.persist",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "e6f225a82ebbb4c4",
+      "parent_span_id": "7769b5f86d532794",
+      "start_ms": 102.533,
+      "duration_ms": 3.908,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b"
+      }
+    },
+    {
+      "name": "sales.transaction.commit",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "8b697e5d3fdb3d33",
+      "parent_span_id": "7769b5f86d532794",
+      "start_ms": 106.496,
+      "duration_ms": 7.901,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "db.operation.name": "COMMIT"
+      }
+    },
+    {
+      "name": "sales.detail.query",
+      "trace_id": "7dc40f08488ae6362b67cab32622934f",
+      "span_id": "e1e2ef871ea17697",
+      "parent_span_id": "b6ea84d7b9bca620",
+      "start_ms": 114.49,
+      "duration_ms": 7.213,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-b",
+        "db.operation.name": "SELECT",
+        "db.collection.name": "sales"
+      }
+    },
+    {
+      "name": "sales.persist",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "a954a873b0981990",
+      "parent_span_id": "b4fc8c7152f0e201",
+      "start_ms": 115.841,
+      "duration_ms": 2.952,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a"
+      }
+    },
+    {
+      "name": "sales.transaction.rollback",
+      "trace_id": "f1a5c4242e9c95a43af98775fdde58e4",
+      "span_id": "b79425ca52f47cf8",
+      "parent_span_id": "b4fc8c7152f0e201",
+      "start_ms": 118.89,
+      "duration_ms": 1.485,
+      "status": "UNSET",
+      "attributes": {
+        "request.id": "demo-purchase-a",
+        "db.operation.name": "ROLLBACK"
+      }
+    }
+  ]
+}

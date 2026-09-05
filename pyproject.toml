@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stockflow-api"
-version = "1.1.0"
+version = "1.2.0"
 description = "Multi-tenant inventory and sales REST API built with FastAPI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,7 @@ testpaths = ["app/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
+markers = ["postgres: requires real PostgreSQL row locking and independent connections"]
 
 [tool.ruff]
 target-version = "py311"
