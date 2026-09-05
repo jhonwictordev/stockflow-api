@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "StockFlow API"
-    APP_VERSION: str = "1.2.0"
+    APP_VERSION: str = "1.2.1"
     ENVIRONMENT: Literal["development", "test", "production"] = "development"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"

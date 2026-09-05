@@ -19,12 +19,12 @@
     <p class="intro">A API precisa acertar quando as requisições chegam juntas. Veja o PostgreSQL serializar a disputa e manter venda, estoque e auditoria consistentes.</p>
     <div class="demo-grid">
       <section class="video-panel" aria-label="Vídeo demonstrativo">
-        <video controls preload="metadata" poster="poster.jpg" playsinline aria-label="Demonstração técnica StockFlow, quarenta segundos">
+        <video controls preload="metadata" poster="poster.jpg" playsinline aria-label="Demonstração técnica StockFlow, um minuto, com narração em português">
           <source src="stockflow-demo.mp4" type="video/mp4">
           <track kind="captions" src="captions.pt-BR.vtt" srclang="pt-BR" label="Português" default>
           Seu navegador não reproduz este vídeo. <a href="stockflow-demo.mp4">Baixar MP4</a>.
         </video>
-        <div class="video-footer"><span>40 segundos · legendado · sem áudio</span><a href="stockflow-demo.mp4" download>Baixar vídeo ↓</a></div>
+        <div class="video-footer"><span>1 minuto · narrado e legendado em português</span><a href="stockflow-demo.mp4" download>Baixar vídeo ↓</a></div>
       </section>
       <aside class="proof-card" aria-labelledby="result-title">
         <p class="eyebrow muted">RESULTADO PERSISTIDO</p><h2 id="result-title">O saldo fecha.</h2>
@@ -45,7 +45,7 @@
       <article><span class="number">02</span><h3>Bloqueio na linha</h3><p>SELECT FOR UPDATE faz a segunda compra ler o saldo atualizado depois do commit da primeira. Itens são bloqueados em ordem de UUID.</p></article>
       <article><span class="number">03</span><h3>Tudo ou nada</h3><p>Venda, itens, saldo e movimentação fazem parte do mesmo commit. A tentativa sem estoque faz rollback sem deixar registros parciais.</p></article>
     </div></section>
-    <details><summary>Transcrição acessível do vídeo</summary><p>Duas compras disputam uma unidade. O teste confirma duas conexões distintas aguardando um bloqueio de linha no PostgreSQL. Ao liberar o bloqueio, uma requisição recebe HTTP 201 e confirma a venda. A outra recebe HTTP 422 por estoque insuficiente e desfaz a transação. O saldo final é zero, com uma venda, um item e uma movimentação de saída. Os spans mostram autenticação, RBAC, consulta, bloqueio e commit ou rollback. O request_id permite seguir cada requisição sem colocar dados pessoais ou tenant nas métricas.</p></details>
+    <details><summary>Transcrição acessível do vídeo</summary><p>Há uma unidade no estoque e duas compras chegam juntas. Cada compra usa sua própria sessão e transação. O teste segura a linha por alguns instantes, confirma duas conexões em espera no PostgreSQL e libera a barreira. Uma compra desconta a unidade, confirma a transação e recebe HTTP 201. A outra retoma, lê o saldo zero, recebe HTTP 422 e faz rollback sem gravar uma segunda venda. O request_id conecta endpoint, autenticação, permissão, bloqueio e transação. Resultado: uma venda, estoque zero e nenhuma duplicidade.</p></details>
     <footer><span>StockFlow · Python / FastAPI / PostgreSQL</span><span id="provenance">Evidências verificáveis no repositório</span><a href="https://github.com/jhonwictordev/stockflow-api/blob/main/docs/POSTGRES_TESTING.md">Reproduzir os testes ↗</a></footer>
   </main>
 </body>
