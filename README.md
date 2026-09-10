@@ -1,5 +1,9 @@
 # StockFlow API
 
+[![CI](https://github.com/jhonwictordev/stockflow-api/actions/workflows/ci.yml/badge.svg)](https://github.com/jhonwictordev/stockflow-api/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e.svg)](LICENSE) [![Demo](https://img.shields.io/badge/demo-public%20walkthrough-0ea5e9.svg)](https://jhonwictordev.github.io/stockflow-api/) [![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20PostgreSQL-092e20.svg)](#demonstração-e-evidências)
+
+> See the [portfolio overview](docs/portfolio-overview.md) for architecture, core flow, data boundaries and technical decisions.
+
 API RESTful de gestão de estoque e vendas para um SaaS multi-tenant simples. O
 projeto demonstra FastAPI assíncrono, arquitetura em camadas, isolamento por
 organização, RBAC, JWT, transações de estoque, migrações e testes de integração.
