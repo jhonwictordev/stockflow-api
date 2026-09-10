@@ -1,5 +1,7 @@
 # StockFlow API
 
+> See the [portfolio overview](docs/portfolio-overview.md) for architecture, core flow, data boundaries and technical decisions.
+
 API RESTful de gestão de estoque e vendas para um SaaS multi-tenant simples. O
 projeto demonstra FastAPI assíncrono, arquitetura em camadas, isolamento por
 organização, RBAC, JWT, transações de estoque, migrações e testes de integração.
