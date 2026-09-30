@@ -6,7 +6,7 @@ SQLAlchemy[asyncio]==2.0.52
 aiosqlite==0.22.1
 asyncpg==0.31.0
 alembic==1.19.1
-PyJWT==2.13.0
+PyJWT==2.14.0
 passlib[bcrypt]==1.7.4
 # passlib 1.7.4 is not compatible with bcrypt 4.1+
 bcrypt==4.0.1
